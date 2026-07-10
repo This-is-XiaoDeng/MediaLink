@@ -7,7 +7,7 @@
 ## 安装
 
 ```bash
-git clone <repo>
+git clone https://github.com/This-is-XiaoDeng/MediaLink
 cd MediaLink
 poetry install
 ```
@@ -104,6 +104,22 @@ poetry run medialink download/ library/ --mode copy
 | `copy` | 复制文件，适用于跨文件系统或 Windows 无 symlink 权限 |
 | `move` | 移动文件，源文件会被移走 |
 
-## 许可证
+## [许可证](LICENSE)
 
-GPL-3
+```
+MediaLink
+Copyright (C) 2026  This-is-XiaoDeng
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with this program.  If not, see <https://www.gnu.org/licenses/>.
+```

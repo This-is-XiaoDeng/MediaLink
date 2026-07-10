@@ -13,6 +13,10 @@ dependencies = [
     "rich>=13.0.0",
 ]
 
+[project.urls]
+Homepage = "https://github.com/This-is-XiaoDeng/MediaLink"
+Repository = "https://github.com/This-is-XiaoDeng/MediaLink"
+
 [project.scripts]
 medialink = "medialink.cli:main"
 
