@@ -26,16 +26,20 @@ def print_series_summary(series_list: list[Series]) -> None:
     table.add_column("Title", style="bright_white")
     table.add_column("Seasons", style="cyan")
     table.add_column("Episodes", style="green")
+    table.add_column("Movies", style="magenta")
     table.add_column("Files", style="yellow")
 
     for series in sorted(series_list, key=lambda s: s.title.lower()):
         total_eps = sum(len(s.episodes) for s in series.seasons.values())
+        total_movies = len(series.movies)
         total_files = sum(
             sum(1 + len(ep.subtitles) for ep in season.episodes.values())
             for season in series.seasons.values()
+        ) + sum(
+            1 + len(ep.subtitles) for ep in series.movies.values()
         )
-        seasons_str = ", ".join(f"S{s:02d}" for s in sorted(series.seasons.keys()))
-        table.add_row(series.title, seasons_str, str(total_eps), str(total_files))
+        seasons_str = ", ".join(f"S{s:02d}" for s in sorted(series.seasons.keys())) if series.seasons else "-"
+        table.add_row(series.title, seasons_str, str(total_eps), str(total_movies), str(total_files))
 
     console.print(table)
 

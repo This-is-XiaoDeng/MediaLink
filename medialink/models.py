@@ -73,6 +73,7 @@ class Season:
 class Series:
     title: str
     seasons: dict[int, Season] = field(default_factory=dict)
+    movies: dict[int, Episode] = field(default_factory=dict)
     media_type: MediaType = MediaType.EPISODE
     year: int | None = None
 

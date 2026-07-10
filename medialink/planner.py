@@ -10,6 +10,7 @@ def plan_mappings(
     series_list: list[Series],
     target_root: Path,
     mode: LinkMode = LinkMode.SOFT,
+    movie_dir: Path | None = None,
 ) -> list[MappingEntry]:
     entries: list[MappingEntry] = []
 
@@ -20,7 +21,11 @@ def plan_mappings(
             season = series.seasons[season_num]
             for ep_num in sorted(season.episodes.keys()):
                 episode = season.episodes[ep_num]
-                entries.extend(_plan_episode(series, season, episode, target_root, category, mode))
+                entries.extend(_plan_episode(series, season, episode, target_root, category, mode, movie_dir))
+
+        for movie_num in sorted(series.movies.keys()):
+            episode = series.movies[movie_num]
+            entries.extend(_plan_movie(series, episode, target_root, mode, movie_dir))
 
     return entries
 
@@ -32,14 +37,11 @@ def _plan_episode(
     target_root: Path,
     category: str,
     mode: LinkMode,
+    movie_dir: Path | None = None,
 ) -> list[MappingEntry]:
     entries: list[MappingEntry] = []
     safe_title = _safe_filename(series.title)
-
-    if series.media_type == MediaType.MOVIE:
-        season_dir = target_root / category / safe_title
-    else:
-        season_dir = target_root / category / safe_title / f"Season {season.number:02d}"
+    season_dir = target_root / category / safe_title / f"Season {season.number:02d}"
 
     if episode.video:
         video = episode.video
@@ -48,6 +50,41 @@ def _plan_episode(
 
     for sub in episode.subtitles:
         target_path = _build_filename(series, season, episode, sub, season_dir)
+        entries.append(MappingEntry(source=sub.source_path, target=target_path, file_kind=sub.file_kind, mode=mode))
+
+    return entries
+
+
+def _plan_movie(
+    series: Series,
+    episode: Episode,
+    target_root: Path,
+    mode: LinkMode,
+    movie_dir: Path | None = None,
+) -> list[MappingEntry]:
+    entries: list[MappingEntry] = []
+    safe_title = _safe_filename(series.title)
+    movie_suffix = f" - Movie {episode.number}" if episode.number > 1 else ""
+
+    if movie_dir is not None:
+        movie_base = movie_dir / safe_title
+    else:
+        movie_base = target_root / "movies" / safe_title
+
+    if episode.video:
+        video = episode.video
+        year_part = f" ({series.year})" if series.year else ""
+        target_path = movie_base / f"{safe_title}{movie_suffix}{year_part}{video.ext}"
+        entries.append(MappingEntry(source=video.source_path, target=target_path, file_kind=video.file_kind, mode=mode))
+
+    for sub in episode.subtitles:
+        sub_source = sub.source_path
+        sub_tags = _extract_subtitle_tags(sub_source.stem)
+        year_part = f" ({series.year})" if series.year else ""
+        if sub_tags:
+            target_path = movie_base / f"{safe_title}{movie_suffix}{year_part}.{sub_tags}{sub.ext}"
+        else:
+            target_path = movie_base / f"{safe_title}{movie_suffix}{year_part}{sub.ext}"
         entries.append(MappingEntry(source=sub.source_path, target=target_path, file_kind=sub.file_kind, mode=mode))
 
     return entries

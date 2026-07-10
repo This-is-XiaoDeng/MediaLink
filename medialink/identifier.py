@@ -67,10 +67,14 @@ def identify_and_group(
 def _match_subtitles(files: list[MediaFile]) -> None:
     """Match subtitle files to their video files by proximity (same directory) and episode number."""
     videos_by_dir: dict[Path, dict[int, MediaFile]] = {}
+    movies_by_dir: dict[Path, list[MediaFile]] = defaultdict(list)
     for mf in files:
-        if mf.file_kind == FileKind.VIDEO and mf.episode > 0:
+        if mf.file_kind == FileKind.VIDEO:
             parent = mf.source_path.parent
-            videos_by_dir.setdefault(parent, {})[mf.episode] = mf
+            if mf.episode > 0:
+                videos_by_dir.setdefault(parent, {})[mf.episode] = mf
+            elif mf.media_type == MediaType.MOVIE:
+                movies_by_dir[parent].append(mf)
 
     for mf in files:
         if mf.file_kind != FileKind.SUBTITLE:
@@ -80,6 +84,14 @@ def _match_subtitles(files: list[MediaFile]) -> None:
         sub_ep = result.get("episode")
         sub_season = result.get("season", 1)
         sub_title = str(result.get("title", ""))
+        sub_type = result.get("type")
+
+        if sub_type == "movie":
+            mf.media_type = MediaType.MOVIE
+            mf.episode = 0
+            mf.season = 0
+            mf.title = sub_title or mf.parent_dir_name
+            continue
 
         if parent in videos_by_dir and sub_ep:
             ep = int(sub_ep)
@@ -89,6 +101,16 @@ def _match_subtitles(files: list[MediaFile]) -> None:
                 mf.season = video.season
                 mf.episode = video.episode
                 mf.media_type = video.media_type
+                mf.year = video.year
+                continue
+
+        if parent in movies_by_dir and not sub_ep:
+            if len(movies_by_dir[parent]) == 1:
+                video = movies_by_dir[parent][0]
+                mf.title = video.title
+                mf.media_type = MediaType.MOVIE
+                mf.season = 0
+                mf.episode = 0
                 mf.year = video.year
                 continue
 
@@ -143,7 +165,10 @@ def _auto_number_unknown_episodes(files: list[MediaFile]) -> None:
         parent = mf.source_path.parent
         videos_in_dir = [
             v for v in files
-            if v.file_kind == FileKind.VIDEO and v.source_path.parent == parent and v.episode > 0
+            if v.file_kind == FileKind.VIDEO
+            and v.source_path.parent == parent
+            and v.episode > 0
+            and v.media_type == mf.media_type
         ]
         if len(videos_in_dir) == 1:
             matched = videos_in_dir[0]
@@ -179,6 +204,7 @@ def _sanitize_title(title: str) -> str:
 
 def _group_into_series(files: list[MediaFile]) -> list[Series]:
     series_map: dict[str, Series] = {}
+    _movie_counter: dict[str, int] = defaultdict(int)
 
     for mf in files:
         if mf.file_kind == FileKind.OTHER:
@@ -191,16 +217,24 @@ def _group_into_series(files: list[MediaFile]) -> list[Series]:
             series_map[key] = Series(title=_sanitize_title(mf.title), year=mf.year)
 
         series = series_map[key]
-        season_num = mf.season if mf.media_type == MediaType.EPISODE else 0
 
-        if season_num not in series.seasons:
-            series.seasons[season_num] = Season(number=season_num)
-        season = series.seasons[season_num]
+        if mf.media_type == MediaType.MOVIE:
+            _movie_counter[key] += 1
+            movie_num = _movie_counter[key]
+            if movie_num not in series.movies:
+                series.movies[movie_num] = Episode(number=movie_num)
+            episode = series.movies[movie_num]
+        else:
+            season_num = mf.season
 
-        ep_num = mf.episode
-        if ep_num not in season.episodes:
-            season.episodes[ep_num] = Episode(number=ep_num)
-        episode = season.episodes[ep_num]
+            if season_num not in series.seasons:
+                series.seasons[season_num] = Season(number=season_num)
+            season = series.seasons[season_num]
+
+            ep_num = mf.episode
+            if ep_num not in season.episodes:
+                season.episodes[ep_num] = Episode(number=ep_num)
+            episode = season.episodes[ep_num]
 
         if mf.file_kind == FileKind.VIDEO:
             if episode.video is None:

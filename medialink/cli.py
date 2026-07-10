@@ -84,6 +84,12 @@ def main() -> None:
         help="Skip files in SPs, Specials, OVA and similar directories",
     )
     parser.add_argument(
+        "--movie-dir",
+        type=Path,
+        default=None,
+        help="Target directory for movies/OVAs (default: TARGET/movies/)",
+    )
+    parser.add_argument(
         "--version",
         "-V",
         action="version",
@@ -118,7 +124,7 @@ def main() -> None:
 
     print_series_summary(series_list)
 
-    mappings = plan_mappings(series_list, target_dir, mode)
+    mappings = plan_mappings(series_list, target_dir, mode, movie_dir=args.movie_dir)
 
     if not mappings:
         console.print("[yellow]No files to process.[/]")
