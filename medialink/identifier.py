@@ -113,7 +113,7 @@ def _group_into_series(files: list[MediaFile]) -> list[Series]:
 
         key = _sanitize_title(mf.title).lower()
         if key not in series_map:
-            series_map[key] = Series(title=_sanitize_title(mf.title), media_type=mf.media_type, year=mf.year)
+            series_map[key] = Series(title=_sanitize_title(mf.title), year=mf.year)
 
         series = series_map[key]
         season_num = mf.season if mf.media_type == MediaType.EPISODE else 0
@@ -134,4 +134,18 @@ def _group_into_series(files: list[MediaFile]) -> list[Series]:
             if mf not in episode.subtitles:
                 episode.subtitles.append(mf)
 
+    for series in series_map.values():
+        series.media_type = _resolve_series_type(series)
+
     return list(series_map.values())
+
+
+def _resolve_series_type(series: Series) -> MediaType:
+    for season in series.seasons.values():
+        for episode in season.episodes.values():
+            if episode.video and episode.video.media_type == MediaType.EPISODE:
+                return MediaType.EPISODE
+            for sub in episode.subtitles:
+                if sub.media_type == MediaType.EPISODE:
+                    return MediaType.EPISODE
+    return MediaType.MOVIE
