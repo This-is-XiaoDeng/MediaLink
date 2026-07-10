@@ -9,9 +9,12 @@ from guessit import guessit
 from medialink.models import MediaFile, FileKind, Series, Season, Episode, MediaType, Override
 
 
+_SEASON_0_DIRS = frozenset({"sps", "specials", "sp", "ova", "ovas", "extras", "special"})
+
+
 def identify_and_group(files: list[MediaFile], overrides: list[Override] | None = None) -> list[Series]:
     for mf in files:
-        result = guessit(str(mf.source_path))
+        result = guessit(mf.source_path.name)
         mf.guessit_raw = dict(result)
 
         mf.title = str(result.get("title") or mf.parent_dir_name)
@@ -24,12 +27,19 @@ def identify_and_group(files: list[MediaFile], overrides: list[Override] | None 
             mf.episode = 0
             mf.season = 0
         else:
-            mf.season = int(result.get("season", 1))
+            if mf.parent_dir_name.lower() in _SEASON_0_DIRS:
+                mf.season = 0
+            else:
+                mf.season = int(result.get("season", 1))
             episode = result.get("episode")
             if episode is not None:
                 mf.episode = int(episode)
             else:
-                mf.episode = 0
+                absolute_ep = result.get("absolute_episode")
+                if absolute_ep is not None:
+                    mf.episode = int(absolute_ep)
+                else:
+                    mf.episode = 0
 
     _match_subtitles(files)
 
@@ -51,7 +61,7 @@ def _match_subtitles(files: list[MediaFile]) -> None:
         if mf.file_kind != FileKind.SUBTITLE:
             continue
         parent = mf.source_path.parent
-        result = guessit(str(mf.source_path))
+        result = guessit(mf.source_path.name)
         sub_ep = result.get("episode")
         sub_season = result.get("season", 1)
         sub_title = str(result.get("title", ""))
