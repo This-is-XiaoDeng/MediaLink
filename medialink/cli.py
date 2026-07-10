@@ -74,6 +74,16 @@ def main() -> None:
         help="Reduce output verbosity",
     )
     parser.add_argument(
+        "--auto-number",
+        action="store_true",
+        help="Auto-assign sequential episode numbers to files whose episode cannot be detected",
+    )
+    parser.add_argument(
+        "--skip-specials",
+        action="store_true",
+        help="Skip files in SPs, Specials, OVA and similar directories",
+    )
+    parser.add_argument(
         "--version",
         "-V",
         action="version",
@@ -104,7 +114,7 @@ def main() -> None:
     overrides = _parse_overrides(args.override or [])
 
     files = scan_directory(source_dir, include_other=args.include_other)
-    series_list = identify_and_group(files, overrides)
+    series_list = identify_and_group(files, overrides, auto_number=args.auto_number, skip_specials=args.skip_specials)
 
     print_series_summary(series_list)
 

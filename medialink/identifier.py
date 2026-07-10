@@ -5,14 +5,24 @@ from collections import defaultdict
 from pathlib import Path
 
 from guessit import guessit
+from rich.console import Console
 
 from medialink.models import MediaFile, FileKind, Series, Season, Episode, MediaType, Override
 
+_console = Console(force_terminal=True, legacy_windows=False)
 
 _SEASON_0_DIRS = frozenset({"sps", "specials", "sp", "ova", "ovas", "extras", "special"})
 
 
-def identify_and_group(files: list[MediaFile], overrides: list[Override] | None = None) -> list[Series]:
+def identify_and_group(
+    files: list[MediaFile],
+    overrides: list[Override] | None = None,
+    auto_number: bool = False,
+    skip_specials: bool = False,
+) -> list[Series]:
+    if skip_specials:
+        files = [mf for mf in files if mf.parent_dir_name.lower() not in _SEASON_0_DIRS]
+
     for mf in files:
         result = guessit(mf.source_path.name)
         mf.guessit_raw = dict(result)
@@ -45,6 +55,11 @@ def identify_and_group(files: list[MediaFile], overrides: list[Override] | None 
 
     overrides = overrides or []
     _apply_overrides(files, overrides)
+
+    if auto_number:
+        _auto_number_unknown_episodes(files)
+    else:
+        _warn_episode_conflicts(files)
 
     return _group_into_series(files)
 
@@ -96,6 +111,66 @@ def _apply_overrides(files: list[MediaFile], overrides: list[Override]) -> None:
                 mf.season = ov.season
             if ov.episode_offset != 0:
                 mf.episode += ov.episode_offset
+
+
+def _auto_number_unknown_episodes(files: list[MediaFile]) -> None:
+    groups: dict[tuple[str, str, int], list[MediaFile]] = defaultdict(list)
+    for mf in files:
+        if mf.file_kind == FileKind.OTHER:
+            continue
+        key = (_sanitize_title(mf.title), mf.media_type.value, mf.season)
+        groups[key].append(mf)
+
+    for mfs in groups.values():
+        if not mfs:
+            continue
+        taken: set[int] = {mf.episode for mf in mfs if mf.episode > 0}
+        unknown_videos = [mf for mf in mfs if mf.episode == 0 and mf.file_kind == FileKind.VIDEO]
+
+        next_num = 1
+        for mf in unknown_videos:
+            while next_num in taken:
+                next_num += 1
+            mf.episode = next_num
+            taken.add(next_num)
+            next_num += 1
+
+    for mf in files:
+        if mf.file_kind != FileKind.SUBTITLE:
+            continue
+        if mf.episode != 0:
+            continue
+        parent = mf.source_path.parent
+        videos_in_dir = [
+            v for v in files
+            if v.file_kind == FileKind.VIDEO and v.source_path.parent == parent and v.episode > 0
+        ]
+        if len(videos_in_dir) == 1:
+            matched = videos_in_dir[0]
+            mf.title = matched.title
+            mf.season = matched.season
+            mf.episode = matched.episode
+            mf.media_type = matched.media_type
+            mf.year = matched.year
+
+
+def _warn_episode_conflicts(files: list[MediaFile]) -> None:
+    groups: dict[tuple[str, str, int, int], list[MediaFile]] = defaultdict(list)
+    for mf in files:
+        if mf.file_kind != FileKind.VIDEO:
+            continue
+        key = (_sanitize_title(mf.title), mf.media_type.value, mf.season, mf.episode)
+        groups[key].append(mf)
+
+    for (title, _mtype, season, ep), mfs in sorted(groups.items()):
+        if len(mfs) <= 1:
+            continue
+        _console.print(
+            f"[yellow]Warning: {len(mfs)} files assigned to "
+            f"{title} S{season:02d}E{ep:02d}:[/]"
+        )
+        for mf in mfs:
+            _console.print(f"  [dim]- {mf.source_path}[/]")
 
 
 def _sanitize_title(title: str) -> str:
